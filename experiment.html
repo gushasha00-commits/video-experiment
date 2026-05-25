@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频观看</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #0a0e15;
+    color: #d0d4dc;
+    font-size: 16px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ---- Welcome Screen ---- */
+  #screen-welcome {
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+  }
+  #screen-welcome h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #e8eaef;
+    margin-bottom: 10px;
+  }
+  #screen-welcome .subtitle {
+    color: #6b7385;
+    font-size: 1.05rem;
+    line-height: 1.8;
+    max-width: 520px;
+    margin-bottom: 28px;
+  }
+  .participant-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 28px;
+    padding: 8px 22px;
+    font-size: 0.95rem;
+    color: #8b93a5;
+    margin-bottom: 32px;
+  }
+  .participant-tag span {
+    color: #60a5fa;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .notice {
+    color: #5a6270;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    margin-bottom: 32px;
+  }
+  .notice strong { color: #8b93a5; }
+
+  /* ---- Buttons ---- */
+  .btn {
+    display: inline-block;
+    padding: 14px 36px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    font-family: inherit;
+  }
+  .btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+  .btn-primary {
+    background: #3b82f6;
+    color: #fff;
+  }
+  .btn-primary:not(:disabled):hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(59,130,246,0.3);
+  }
+  .btn-start {
+    background: #1e293b;
+    color: #e8eaef;
+    border: 1px solid #334155;
+    font-size: 1.1rem;
+    padding: 16px 48px;
+  }
+  .btn-start:hover {
+    background: #334155;
+    transform: translateY(-1px);
+  }
+  .btn-outline {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #334155;
+  }
+  .btn-outline:hover {
+    background: #1e293b;
+    color: #cbd5e1;
+  }
+
+  /* ---- Video Screen ---- */
+  #screen-video {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .video-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+  .video-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #c8cdd8;
+  }
+  .video-counter {
+    font-size: 0.9rem;
+    color: #5a6270;
+  }
+  .video-counter b { color: #94a3b8; }
+
+  /* Progress dots */
+  .progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .progress-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #1e293b;
+    transition: all 0.35s;
+  }
+  .progress-dot.done  { background: #22c55e; }
+  .progress-dot.current { background: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.2); }
+  .progress-sep {
+    width: 22px; height: 2px;
+    background: #1e293b;
+    transition: background 0.35s;
+  }
+  .progress-sep.done { background: #22c55e; }
+
+  /* ---- Video Player (LARGE) ---- */
+  .video-wrapper {
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    max-height: 70vh;
+    aspect-ratio: 16 / 9;
+    cursor: pointer;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5);
+  }
+  .video-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .play-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.25);
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .play-overlay.hidden { opacity: 0; }
+  .play-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+  }
+
+  .video-hint {
+    text-align: center;
+    color: #4b5563;
+    font-size: 0.85rem;
+  }
+
+  .loading-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+  }
+  .loading-fill {
+    height: 100%;
+    width: 0%;
+    background: #3b82f6;
+    transition: width 0.3s;
+  }
+  .loading-bar.done { display: none; }
+
+  /* ---- Rating Screen ---- */
+  #screen-rating {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px 0;
+  }
+  #screen-rating h2 {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #c8cdd8;
+    margin-bottom: 28px;
+  }
+  .rating-block {
+    margin-bottom: 26px;
+  }
+  .rating-block > label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #9ca3af;
+    font-size: 0.95rem;
+  }
+  .scale-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .scale-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid #334155;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .scale-btn:hover {
+    border-color: #60a5fa;
+    color: #60a5fa;
+  }
+  .scale-btn.selected {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: #fff;
+    transform: scale(1.06);
+    box-shadow: 0 0 14px rgba(59,130,246,0.3);
+  }
+  .scale-anchors {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #4b5563;
+    margin-top: 4px;
+  }
+  .radio-row {
+    display: flex;
+    gap: 28px;
+  }
+  .radio-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 0.95rem;
+  }
+  .radio-row input[type="radio"] {
+    accent-color: #3b82f6;
+    width: 18px;
+    height: 18px;
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: #3b82f6;
+    height: 6px;
+  }
+  .slider-val {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #60a5fa;
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* ---- Results Screen ---- */
+  #screen-results {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px 0;
+  }
+  #screen-results h2 {
+    text-align: center;
+    font-size: 1.4rem;
+    color: #c8cdd8;
+    margin-bottom: 8px;
+  }
+  #screen-results .thanks {
+    text-align: center;
+    color: #6b7280;
+    margin-bottom: 26px;
+    font-size: 0.95rem;
+  }
+  .result-table-wrap {
+    background: #111827;
+    border-radius: 12px;
+    padding: 20px 24px;
+    overflow-x: auto;
+  }
+  .result-table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .result-table-wrap th,
+  .result-table-wrap td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #1f2937;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .result-table-wrap th {
+    color: #6b7280;
+    font-weight: 600;
+  }
+
+  /* ---- Utility ---- */
+  .hidden { display: none !important; }
+  .center { text-align: center; }
+  .mt-8  { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .mt-24 { margin-top: 24px; }
+  .warn-text { color: #f59e0b; font-size: 0.85rem; }
+  .btns-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* ---- Mobile ---- */
+  @media (max-width: 640px) {
+    body { padding: 8px; }
+    .video-wrapper { border-radius: 4px; }
+    .btn { padding: 12px 24px; font-size: 0.95rem; }
+    .btn-start { padding: 14px 32px; }
+    .scale-btn { width: 38px; height: 38px; font-size: 0.95rem; }
+    #screen-welcome h1 { font-size: 1.6rem; }
+    #screen-rating { padding: 10px 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container" id="app">
+
+  <!-- ====== SCREEN 0: Welcome ====== -->
+  <div id="screen-welcome">
+    <h1>视频观看</h1>
+    <p class="subtitle">
+      您将依次观看 <strong>3 段短视频</strong>，<br>
+      每段视频结束后请根据个人感受回答几个简短问题。
+    </p>
+    <div class="participant-tag">
+      您的编号：<span id="participant-id"></span>
+    </div>
+    <p class="notice">
+      观看过程中视频<strong>不可快进、快退或跳转</strong>，但可以暂停。<br>
+      所有回答仅用于统计分析，请根据真实感受作答。
+    </p>
+    <button class="btn btn-start" onclick="startSession()">开始观看</button>
+  </div>
+
+  <!-- ====== SCREEN 1: Video Playback ====== -->
+  <div id="screen-video" class="hidden">
+    <div class="progress-row" id="progress-row"></div>
+    <div class="video-header">
+      <span class="video-title" id="video-label-text"></span>
+      <span class="video-counter">第 <b id="video-num">1</b> / <b id="video-total">3</b> 段</span>
+    </div>
+    <div class="video-wrapper" id="video-container" onclick="togglePlay()">
+      <video id="video-player" disablePictureInPicture playsinline
+             preload="auto"
+             oncontextmenu="return false">
+        <source src="" type="video/mp4">
+      </video>
+      <div class="play-overlay" id="play-overlay">
+        <div class="play-icon" id="play-icon">◷</div>
+      </div>
+      <div class="loading-bar" id="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+    </div>
+    <p class="video-hint">点击视频区域可暂停 / 继续播放</p>
+    <button class="btn btn-primary" id="btn-after-video" disabled onclick="goToRating()">
+      我已完整观看，进入下一部分
+    </button>
+  </div>
+
+  <!-- ====== SCREEN 2: Rating ====== -->
+  <div id="screen-rating" class="hidden">
+    <h2>第 <span id="rating-video-num">1</span> 段视频</h2>
+
+    <div class="rating-block">
+      <label>你先前是否看过这段视频？</label>
+      <div class="radio-row">
+        <label><input type="radio" name="seen" value="1" checked> 没有看过</label>
+        <label><input type="radio" name="seen" value="2"> 看过</label>
+      </div>
+    </div>
+
+    <div class="rating-block">
+      <label>你觉得这段视频有趣吗？</label>
+      <div class="scale-row" id="interest-scale"></div>
+      <div class="scale-anchors"><span>非常无聊</span><span>非常有趣</span></div>
+    </div>
+
+    <div class="rating-block">
+      <label>你觉得这段视频的信息量如何？</label>
+      <div class="scale-row" id="density-scale"></div>
+      <div class="scale-anchors"><span>信息量非常低</span><span>信息量非常高</span></div>
+    </div>
+
+    <div class="rating-block">
+      <label>你觉得这段视频的难度如何？</label>
+      <div class="scale-row" id="difficulty-scale"></div>
+      <div class="scale-anchors"><span>非常容易</span><span>非常困难</span></div>
+    </div>
+
+    <div class="rating-block">
+      <label>你之前对这个话题了解多少？</label>
+      <div class="scale-row" id="knowledge-scale"></div>
+      <div class="scale-anchors"><span>完全不了解</span><span>非常了解</span></div>
+    </div>
+
+    <div class="rating-block">
+      <label>你觉得自己理解了多少视频内容？（0 = 完全没理解，100 = 完全理解）</label>
+      <div class="slider-row">
+        <span style="color:#4b5563;font-size:0.85rem;">0</span>
+        <input type="range" id="understanding-slider" min="0" max="100" value="50" step="1"
+               oninput="document.getElementById('understanding-value').textContent = this.value;
+                        checkRatingDone();">
+        <span style="color:#4b5563;font-size:0.85rem;">100</span>
+        <span class="slider-val" id="understanding-value">50</span>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-submit-rating" disabled onclick="submitRating()">
+      提交
+    </button>
+    <p class="warn-text center mt-8" id="rating-warning"></p>
+  </div>
+
+  <!-- ====== SCREEN 3: Complete ====== -->
+  <div id="screen-results" class="hidden">
+    <h2>观看完成</h2>
+    <p class="thanks">感谢您的参与！以下是您的观看记录。</p>
+
+    <div class="result-table-wrap" id="result-content"></div>
+
+    <p class="center" style="color:#4b5563;font-size:0.82rem;margin-top:18px;">
+      请点击下方按钮导出数据文件，发送给研究人员。
+    </p>
+
+    <div class="btns-row mt-16">
+      <button class="btn btn-primary" onclick="exportData()">导出数据</button>
+      <button class="btn btn-outline" onclick="location.reload()">重新开始</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>
+// ============================================================================
+//  CONFIGURATION — 修改此处的视频 URL
+// ============================================================================
+//  将你的 MP4 文件上传至任意可公网访问的存储服务（OSS、COS、GitHub Releases 等），
+//  然后将下方 URL 替换为实际的公网地址。
+
+const VIDEO_BASE = 'https://video-exp-2024.oss-cn-beijing.aliyuncs.com/videos/';
+
+const VIDEOS = [
+  { id: 'A', label: '极地海洋', src: VIDEO_BASE + '%E6%9E%81%E5%9C%B0%E6%B5%B7%E6%B4%8B.mp4' },
+  { id: 'B', label: '太阳系',   src: VIDEO_BASE + '%E5%A4%AA%E9%98%B3%E7%B3%BB.mp4'        },
+  { id: 'C', label: '欧洲地形', src: VIDEO_BASE + '%E6%AC%A7%E6%B4%B2%E5%9C%B0%E5%BD%A2.mp4' },
+];
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+const PARTICIPANT_ID = Math.floor(Math.random() * 9000) + 1000;
+let videoOrder  = [];
+let currentIdx  = 0;
+let ratings     = [];
+
+// ============================================================================
+//  INIT
+// ============================================================================
+
+document.getElementById('participant-id').textContent = PARTICIPANT_ID;
+
+function buildScale(id) {
+  const el = document.getElementById(id);
+  for (let v = 1; v <= 7; v++) {
+    const btn = document.createElement('button');
+    btn.className = 'scale-btn';
+    btn.textContent = v;
+    btn.dataset.value = v;
+    btn.onclick = function () {
+      el.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      checkRatingDone();
+    };
+    el.appendChild(btn);
+  }
+}
+buildScale('interest-scale');
+buildScale('density-scale');
+buildScale('difficulty-scale');
+buildScale('knowledge-scale');
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ============================================================================
+//  SESSION FLOW
+// ============================================================================
+
+function startSession() {
+  videoOrder = shuffle(VIDEOS);
+  ratings = [];
+  currentIdx = 0;
+  document.getElementById('screen-welcome').classList.add('hidden');
+  showVideo();
+}
+
+function showVideo() {
+  document.getElementById('screen-video').classList.remove('hidden');
+  document.getElementById('screen-rating').classList.add('hidden');
+  document.getElementById('screen-results').classList.add('hidden');
+  updateProgress();
+
+  const v = videoOrder[currentIdx];
+  document.getElementById('video-num').textContent = currentIdx + 1;
+  document.getElementById('video-total').textContent = VIDEOS.length;
+  document.getElementById('video-label-text').textContent = v.label;
+
+  const video   = document.getElementById('video-player');
+  const btn     = document.getElementById('btn-after-video');
+  const overlay = document.getElementById('play-overlay');
+  const icon    = document.getElementById('play-icon');
+  const loadBar = document.getElementById('loading-bar');
+  const loadFil = document.getElementById('loading-fill');
+
+  video.src = v.src;
+  video.currentTime = 0;
+  video.playbackRate = 1.0;
+  btn.disabled = true;
+  btn.textContent = '请完整观看视频';
+
+  // Show buffering state
+  overlay.classList.remove('hidden');
+  loadBar.classList.remove('done');
+  loadFil.style.width = '0%';
+  icon.textContent = '◷';
+
+  // Track buffer progress manually
+  let progressTimer = setInterval(() => {
+    if (video.buffered.length > 0) {
+      const pct = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+      loadFil.style.width = Math.min(pct, 100) + '%';
+    }
+  }, 150);
+
+  // Wait until enough data is buffered before playing
+  video.oncanplay = () => {
+    clearInterval(progressTimer);
+    loadBar.classList.add('done');
+    video.play().catch(() => {});
+    overlay.classList.add('hidden');
+  };
+
+  // Show buffering indicator if playback stalls mid-video
+  video.onwaiting = () => {
+    overlay.classList.remove('hidden');
+    icon.textContent = '◷';
+  };
+  video.onplaying = () => {
+    overlay.classList.add('hidden');
+  };
+
+  video.onended = () => {
+    btn.disabled = false;
+    btn.textContent = '我已完整观看，进入下一部分';
+    overlay.classList.remove('hidden');
+    icon.textContent = '✓';
+  };
+
+  document.getElementById('screen-video').scrollIntoView({ behavior: 'smooth' });
+}
+
+function updateProgress() {
+  const bar = document.getElementById('progress-row');
+  bar.innerHTML = '';
+  for (let i = 0; i < VIDEOS.length; i++) {
+    if (i > 0) {
+      const sep = document.createElement('div');
+      sep.className = 'progress-sep' + (i <= currentIdx ? ' done' : '');
+      bar.appendChild(sep);
+    }
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if (i < currentIdx) dot.classList.add('done');
+    if (i === currentIdx) dot.classList.add('current');
+    bar.appendChild(dot);
+  }
+}
+
+function togglePlay() {
+  const video   = document.getElementById('video-player');
+  const overlay = document.getElementById('play-overlay');
+  const icon    = document.getElementById('play-icon');
+  if (video.paused) {
+    video.play().catch(() => {});
+    overlay.classList.add('hidden');
+  } else {
+    video.pause();
+    overlay.classList.remove('hidden');
+    icon.textContent = '⏸';
+  }
+}
+
+// ============================================================================
+//  RATING
+// ============================================================================
+
+function goToRating() {
+  document.getElementById('screen-video').classList.add('hidden');
+  document.getElementById('screen-rating').classList.remove('hidden');
+  document.getElementById('rating-video-num').textContent = currentIdx + 1;
+
+  // Reset all inputs
+  document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector('input[name="seen"][value="1"]').checked = true;
+  document.getElementById('understanding-slider').value = 50;
+  document.getElementById('understanding-value').textContent = '50';
+  document.getElementById('btn-submit-rating').disabled = true;
+  document.getElementById('rating-warning').textContent = '';
+
+  document.getElementById('screen-rating').scrollIntoView({ behavior: 'smooth' });
+}
+
+function checkRatingDone() {
+  const ok = document.querySelector('#interest-scale .selected')
+          && document.querySelector('#density-scale .selected')
+          && document.querySelector('#difficulty-scale .selected')
+          && document.querySelector('#knowledge-scale .selected');
+
+  document.getElementById('btn-submit-rating').disabled = !ok;
+  document.getElementById('rating-warning').textContent =
+    ok ? '' : '请完成所有问题的选择后再提交';
+}
+
+function submitRating() {
+  const seen     = parseInt(document.querySelector('input[name="seen"]:checked').value);
+  const interest = parseInt(document.querySelector('#interest-scale .selected').dataset.value);
+  const density  = parseInt(document.querySelector('#density-scale .selected').dataset.value);
+  const difficulty = parseInt(document.querySelector('#difficulty-scale .selected').dataset.value);
+  const knowledge = parseInt(document.querySelector('#knowledge-scale .selected').dataset.value);
+  const understanding = parseInt(document.getElementById('understanding-slider').value);
+
+  ratings.push({
+    participantId: PARTICIPANT_ID,
+    videoId:       videoOrder[currentIdx].id,
+    videoLabel:    videoOrder[currentIdx].label,
+    order:         currentIdx + 1,
+    seen,
+    interest,
+    density,
+    difficulty,
+    knowledge,
+    understanding,
+  });
+
+  currentIdx++;
+  if (currentIdx < VIDEOS.length) {
+    showVideo();
+  } else {
+    showResults();
+  }
+}
+
+// ============================================================================
+//  RESULTS + EXPORT
+// ============================================================================
+
+function showResults() {
+  document.getElementById('screen-video').classList.add('hidden');
+  document.getElementById('screen-rating').classList.add('hidden');
+  document.getElementById('screen-results').classList.remove('hidden');
+
+  const el = document.getElementById('result-content');
+  let html = `<table>
+    <thead><tr>
+      <th>视频</th><th>顺序</th><th>看过</th>
+      <th>趣味性</th><th>信息密度</th><th>难度</th><th>先前知识</th><th>理解度</th>
+    </tr></thead><tbody>`;
+
+  ratings.forEach(r => {
+    html += `<tr>
+      <td>${r.videoLabel}</td>
+      <td>${r.order}</td>
+      <td>${r.seen === 2 ? '是' : '否'}</td>
+      <td>${r.interest}</td>
+      <td>${r.density}</td>
+      <td>${r.difficulty}</td>
+      <td>${r.knowledge}</td>
+      <td>${r.understanding}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+
+  document.getElementById('screen-results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function exportData() {
+  const headers = [
+    'participant_id','video_id','video_label','order',
+    'seen','interest','density','difficulty','knowledge','understanding'
+  ];
+  const rows = ratings.map(r => [
+    r.participantId, r.videoId, r.videoLabel, r.order,
+    r.seen, r.interest, r.density, r.difficulty, r.knowledge, r.understanding
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'data');
+  XLSX.writeFile(wb, `participant_${PARTICIPANT_ID}_data.xlsx`);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据汇总</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #0a0e15;
+    color: #d0d4dc;
+    font-size: 15px;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 1160px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #e8eaef;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #5a6270;
+    font-size: 0.9rem;
+    margin-bottom: 28px;
+  }
+  h2 {
+    margin: 36px 0 14px;
+    font-size: 1.15rem;
+    color: #60a5fa;
+    font-weight: 700;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(96,165,250,0.15);
+  }
+
+  /* Upload */
+  .upload-zone {
+    border: 2px dashed #1f2937;
+    border-radius: 12px;
+    padding: 44px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.01);
+  }
+  .upload-zone:hover,
+  .upload-zone.dragover {
+    border-color: #3b82f6;
+    background: rgba(59,130,246,0.05);
+  }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 2.4rem; margin-bottom: 6px; }
+  .upload-hint { color: #4b5563; font-size: 0.8rem; margin-top: 6px; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; margin-top: 8px; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th, td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1f2937;
+    text-align: center;
+    white-space: nowrap;
+  }
+  th {
+    color: #6b7280;
+    background: #111827;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  tr:hover { background: rgba(59,130,246,0.04); }
+
+  .pass   { color: #22c55e; font-weight: 700; }
+  .fail   { color: #ef4444; }
+  .best-row { background: rgba(34,197,94,0.08) !important; }
+  .best-row td { color: #22c55e; font-weight: 700; }
+
+  .n-badge {
+    display: inline-block;
+    background: #3b82f6;
+    color: #fff;
+    padding: 2px 14px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  /* Decision */
+  .decision-card {
+    background: #111827;
+    border-radius: 12px;
+    padding: 22px 28px;
+    margin-top: 8px;
+    line-height: 2;
+  }
+  .decision-card h3 {
+    color: #22c55e;
+    margin-bottom: 8px;
+    font-size: 1.05rem;
+  }
+  .verdict {
+    font-size: 1.2rem;
+    color: #22c55e;
+    font-weight: 700;
+  }
+
+  /* Plot canvas */
+  .plot-canvas {
+    background: #0f131a;
+    border-radius: 12px;
+    display: block;
+    margin: 12px auto;
+    max-width: 100%;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 11px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    font-family: inherit;
+    margin: 5px;
+  }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #334155;
+  }
+  .btn-outline:hover { background: #1e293b; color: #cbd5e1; }
+  .btn-row { text-align: center; margin-top: 18px; }
+
+  .hidden { display: none !important; }
+  .center { text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1>数据汇总与材料筛选</h1>
+  <p class="subtitle">
+    收集全部 20 名被试的数据文件后，拖拽至此页面自动汇总并筛选最优材料。
+  </p>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="upload-zone"
+       onclick="document.getElementById('file-input').click()"
+       ondragover="this.classList.add('dragover'); event.preventDefault()"
+       ondragleave="this.classList.remove('dragover')"
+       ondrop="this.classList.remove('dragover'); event.preventDefault(); handleDrop(event)">
+    <div class="upload-icon">&#128194;</div>
+    <p>点击此处 或 拖拽全部被试数据文件到此处</p>
+    <p class="upload-hint">支持 .csv / .xlsx 格式</p>
+    <input type="file" id="file-input" accept=".csv,.xlsx" multiple onchange="handleFiles(this.files)">
+  </div>
+
+  <!-- Results -->
+  <div id="results-area" class="hidden">
+
+    <!-- 1. Raw data -->
+    <h2>1. 个体数据汇总（共 <span class="n-badge" id="n-participants">0</span> 名被试）</h2>
+    <div class="table-wrap">
+      <table id="raw-table">
+        <thead><tr>
+          <th>被试ID</th><th>视频</th><th>顺序</th><th>看过</th>
+          <th>趣味性</th><th>信息密度</th><th>难度</th><th>先前知识</th><th>理解度</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 2. Statistics -->
+    <h2>2. 各候选视频描述统计与筛选判定</h2>
+    <div class="table-wrap">
+      <table id="stats-table">
+        <thead><tr>
+          <th>视频</th><th>N</th>
+          <th>看过比例</th>
+          <th>趣味性 M ± SD</th>
+          <th>信息密度 M ± SD</th>
+          <th>难度 M ± SD</th>
+          <th>先前知识 M ± SD</th>
+          <th>理解度 M ± SD</th>
+          <th>看过 ≤20%</th>
+          <th>趣味性 3.5–5.0</th>
+          <th>信息密度 3.5–5.0</th>
+          <th>难度 3.0–5.0</th>
+          <th>先前知识 &lt;3.0</th>
+          <th>理解度 ≥70</th>
+          <th>综合判定</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 3. Decision -->
+    <h2>3. 筛选决策</h2>
+    <div class="decision-card" id="decision-box"></div>
+
+    <!-- 4. Scatter plot -->
+    <h2>4. 趣味性 × 信息密度 散点图（M ± SD）</h2>
+    <p class="center" style="color:#4b5563;font-size:0.8rem;">
+      绿色矩形 = 筛选目标区间（趣味性 3.5–5.0，信息密度 3.5–5.0）
+    </p>
+    <canvas id="scatter-plot" class="plot-canvas" width="640" height="440"></canvas>
+
+    <!-- 5. Individual plot -->
+    <h2>5. 个体评分散点</h2>
+    <p class="center" style="color:#4b5563;font-size:0.8rem;">
+      每个点代表一名被试的一次评价，不同颜色对应不同候选视频（含随机抖动）
+    </p>
+    <canvas id="individual-plot" class="plot-canvas" width="640" height="440"></canvas>
+
+    <!-- Export -->
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="exportSummary()">导出汇总统计表</button>
+      <button class="btn btn-outline" onclick="exportRaw()">导出全部原始数据</button>
+    </div>
+
+    <!-- Criteria reference -->
+    <div style="background:#0f131a; border-radius:10px; padding:16px 20px; margin-top:26px; font-size:0.8rem; line-height:2.1; color:#6b7280;">
+      <strong style="color:#22c55e;">筛选标准参考：</strong><br>
+      ① 看过比例 ≤ 20%（超过则排除，避免熟悉度影响）<br>
+      ② 趣味性均值 3.5 – 5.0（中等趣味水平）<br>
+      ③ 信息密度均值 3.5 – 5.0（中等信息密度）<br>
+      ④ 视频难度均值 3.0 – 5.0（中等难度）<br>
+      ⑤ 先前知识均值 &lt; 3.0；若 &gt; 3.5 则排除<br>
+      ⑥ 主观理解度均值 ≥ 70（保证能基本理解视频内容）
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>
+// ============================================================================
+//  CRITERIA
+// ============================================================================
+
+const CRITERIA = {
+  seenRatio:     { max: 0.20,   label: '看过比例 ≤ 20%' },
+  interest:      { min: 3.5, max: 5.0, label: '趣味性 3.5–5.0' },
+  density:       { min: 3.5, max: 5.0, label: '信息密度 3.5–5.0' },
+  difficulty:    { min: 3.0, max: 5.0, label: '难度 3.0–5.0' },
+  knowledge:     { max: 3.0, hardMax: 3.5, label: '先前知识 < 3.0' },
+  understanding: { min: 70,    label: '理解度 ≥ 70' },
+};
+
+let allData = [];
+let _stats  = [];
+
+// ============================================================================
+//  FILE HANDLING
+// ============================================================================
+
+function handleFiles(files) {
+  allData = [];
+  const fileArray = Array.from(files);
+  if (fileArray.length === 0) return;
+
+  let loaded = 0;
+
+  fileArray.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const isXlsx = file.name.endsWith('.xlsx');
+      if (isXlsx) {
+        parseXlsx(e.target.result);
+      } else {
+        parseCsv(e.target.result);
+      }
+      loaded++;
+      if (loaded === fileArray.length) processData();
+    };
+
+    if (file.name.endsWith('.xlsx')) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file, 'UTF-8');
+    }
+  });
+}
+
+function parseXlsx(buffer) {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  if (rows.length < 2) return;
+
+  const header = rows[0].map(h => String(h).trim().toLowerCase());
+  const idx = buildIndex(header);
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    const r = extractRow(row, idx);
+    if (r) allData.push(r);
+  }
+}
+
+function parseCsv(text) {
+  const clean = text.replace(/^﻿/, '');
+  const lines = clean.trim().split('\n');
+  if (lines.length < 2) return;
+
+  const header = lines[0].split(',');
+  const idx = buildIndex(header.map(h => h.trim().toLowerCase()));
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = line.split(',');
+    const r = extractRow(cols, idx);
+    if (r) allData.push(r);
+  }
+}
+
+function buildIndex(header) {
+  return {
+    participantId : header.findIndex(h => h.includes('participant')),
+    videoId       : header.findIndex(h => h === 'video_id'),
+    videoLabel    : header.findIndex(h => h === 'video_label'),
+    order         : header.findIndex(h => h === 'order'),
+    seen          : header.findIndex(h => h === 'seen'),
+    interest      : header.findIndex(h => h === 'interest'),
+    density       : header.findIndex(h => h === 'density'),
+    difficulty    : header.findIndex(h => h === 'difficulty'),
+    knowledge     : header.findIndex(h => h === 'knowledge'),
+    understanding : header.findIndex(h => h === 'understanding'),
+  };
+}
+
+function extractRow(cols, idx) {
+  if (idx.participantId < 0 || idx.videoId < 0) return null;
+  return {
+    participantId : String(cols[idx.participantId]).trim(),
+    videoId       : String(cols[idx.videoId]).trim(),
+    videoLabel    : idx.videoLabel >= 0 ? String(cols[idx.videoLabel]).trim() : '',
+    order         : parseInt(cols[idx.order]) || 0,
+    seen          : parseInt(cols[idx.seen]) || 1,
+    interest      : parseInt(cols[idx.interest]) || 0,
+    density       : parseInt(cols[idx.density]) || 0,
+    difficulty    : parseInt(cols[idx.difficulty]) || 0,
+    knowledge     : parseInt(cols[idx.knowledge]) || 0,
+    understanding : parseInt(cols[idx.understanding]) || 0,
+  };
+}
+
+function handleDrop(e) {
+  handleFiles(e.dataTransfer.files);
+}
+
+// ============================================================================
+//  STATISTICS
+// ============================================================================
+
+function mean(arr)  { return arr.reduce((a, b) => a + b, 0) / arr.length; }
+function sd(arr) {
+  if (arr.length <= 1) return 0;
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1));
+}
+function fmt(num, dec) { return Number(num).toFixed(dec); }
+
+function processData() {
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('results-area').classList.remove('hidden');
+
+  const participantIds = [...new Set(allData.map(d => d.participantId))];
+  document.getElementById('n-participants').textContent = participantIds.length;
+
+  // Raw table
+  const rawTbody = document.querySelector('#raw-table tbody');
+  rawTbody.innerHTML = '';
+  allData.forEach(d => {
+    rawTbody.innerHTML += `<tr>
+      <td>${d.participantId}</td><td>${d.videoLabel}</td><td>${d.order}</td>
+      <td>${d.seen === 2 ? '是' : '否'}</td><td>${d.interest}</td>
+      <td>${d.density}</td><td>${d.difficulty}</td><td>${d.knowledge}</td>
+      <td>${d.understanding}</td></tr>`;
+  });
+
+  // Per-video stats
+  const videoIds = [...new Set(allData.map(d => d.videoId))].sort();
+
+  _stats = videoIds.map(vid => {
+    const rows = allData.filter(d => d.videoId === vid);
+    const n = rows.length;
+    const seenRatio = rows.filter(d => d.seen === 2).length / n;
+
+    const iV  = rows.map(d => d.interest);
+    const dV  = rows.map(d => d.density);
+    const dfV = rows.map(d => d.difficulty);
+    const kV  = rows.map(d => d.knowledge);
+    const uV  = rows.map(d => d.understanding);
+
+    const iM = mean(iV),  iSD = sd(iV);
+    const dM = mean(dV),  dSD = sd(dV);
+    const dfM = mean(dfV), dfSD = sd(dfV);
+    const kM = mean(kV),  kSD = sd(kV);
+    const uM = mean(uV),  uSD = sd(uV);
+
+    const sOk = seenRatio <= CRITERIA.seenRatio.max;
+    const iOk = iM >= CRITERIA.interest.min && iM <= CRITERIA.interest.max;
+    const dOk = dM >= CRITERIA.density.min  && dM <= CRITERIA.density.max;
+    const dfOk = dfM >= CRITERIA.difficulty.min && dfM <= CRITERIA.difficulty.max;
+    const kOk = kM < CRITERIA.knowledge.hardMax;
+    const uOk = uM >= CRITERIA.understanding.min;
+
+    return {
+      videoId: vid, n, seenRatio,
+      iM, iSD, dM, dSD, dfM, dfSD, kM, kSD, uM, uSD,
+      sOk, iOk, dOk, dfOk, kOk, uOk,
+      qualifies: sOk && iOk && dOk && dfOk && kOk && uOk,
+      rows,
+    };
+  });
+
+  // Stats table
+  const statsTbody = document.querySelector('#stats-table tbody');
+  statsTbody.innerHTML = '';
+
+  _stats.forEach(s => {
+    const icon = (ok) => ok ? '✓' : '✗';
+    const cls = (ok) => ok ? 'pass' : 'fail';
+
+    statsTbody.innerHTML += `<tr class="${s.qualifies ? 'best-row' : ''}">
+      <td><strong>${s.videoId}</strong></td><td>${s.n}</td>
+      <td>${fmt(s.seenRatio * 100, 0)}%</td>
+      <td>${fmt(s.iM, 2)} ± ${fmt(s.iSD, 2)}</td>
+      <td>${fmt(s.dM, 2)} ± ${fmt(s.dSD, 2)}</td>
+      <td>${fmt(s.dfM, 2)} ± ${fmt(s.dfSD, 2)}</td>
+      <td>${fmt(s.kM, 2)} ± ${fmt(s.kSD, 2)}</td>
+      <td>${fmt(s.uM, 1)} ± ${fmt(s.uSD, 1)}</td>
+      <td class="${cls(s.sOk)}">${icon(s.sOk)}</td>
+      <td class="${cls(s.iOk)}">${icon(s.iOk)}</td>
+      <td class="${cls(s.dOk)}">${icon(s.dOk)}</td>
+      <td class="${cls(s.dfOk)}">${icon(s.dfOk)}</td>
+      <td class="${cls(s.kOk)}">${icon(s.kOk)}</td>
+      <td class="${cls(s.uOk)}">${icon(s.uOk)}</td>
+      <td class="${cls(s.qualifies)}"><strong>${s.qualifies ? '符合' : '不符合'}</strong></td>
+    </tr>`;
+  });
+
+  renderDecision();
+  drawScatter(_stats);
+  drawIndividual(videoIds);
+  document.getElementById('results-area').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================================================
+//  DECISION
+// ============================================================================
+
+function renderDecision() {
+  const box = document.getElementById('decision-box');
+  const qualified = _stats.filter(s => s.qualifies);
+
+  if (qualified.length === 0) {
+    let rows = '';
+    _stats.forEach(s => {
+      const fails = [];
+      if (!s.sOk)  fails.push(`看过比例 ${fmt(s.seenRatio * 100, 0)}% > 20%`);
+      if (!s.iOk)  fails.push(`趣味性 M = ${fmt(s.iM, 2)}（需 3.5–5.0）`);
+      if (!s.dOk)  fails.push(`信息密度 M = ${fmt(s.dM, 2)}（需 3.5–5.0）`);
+      if (!s.dfOk) fails.push(`难度 M = ${fmt(s.dfM, 2)}（需 3.0–5.0）`);
+      if (!s.kOk)  fails.push(`先前知识 M = ${fmt(s.kM, 2)} ≥ 3.5`);
+      if (!s.uOk)  fails.push(`理解度 M = ${fmt(s.uM, 1)} < 70`);
+      rows += `<tr><td><strong>${s.videoId}</strong></td><td>${fails.join('；')}</td></tr>`;
+    });
+
+    box.innerHTML = `
+      <h3>无候选视频同时满足全部筛选条件</h3>
+      <p style="margin-bottom:6px;">各视频未通过项：</p>
+      <table style="font-size:0.82rem;">
+        <tr><th>视频</th><th>不通过项</th></tr>${rows}
+      </table>
+      <p style="margin-top:8px; color:#f59e0b;">建议更换候选视频材料后重新进行预实验。</p>`;
+  } else {
+    qualified.forEach(q => { q.avgSD = (q.iSD + q.dSD + q.dfSD) / 3; });
+    qualified.sort((a, b) => a.avgSD - b.avgSD);
+
+    const best = qualified[0];
+    let html = `<h3>最优材料：<span class="verdict">${best.videoId}</span></h3>
+      <p style="color:#9ca3af;margin-bottom:8px;">
+        共 ${qualified.length} 个视频符合全部筛选条件，按评分一致性（平均 SD）排序：</p>
+      <table style="font-size:0.82rem;">
+        <tr><th>视频</th><th>看过比例</th><th>趣味性</th><th>信息密度</th>
+          <th>难度</th><th>先前知识</th><th>理解度</th><th>平均 SD</th><th>推荐</th></tr>`;
+
+    qualified.forEach((q, i) => {
+      html += `<tr class="${i === 0 ? 'best-row' : ''}">
+        <td><strong>${q.videoId}</strong></td><td>${fmt(q.seenRatio * 100, 0)}%</td>
+        <td>${fmt(q.iM, 2)} ± ${fmt(q.iSD, 2)}</td>
+        <td>${fmt(q.dM, 2)} ± ${fmt(q.dSD, 2)}</td>
+        <td>${fmt(q.dfM, 2)} ± ${fmt(q.dfSD, 2)}</td>
+        <td>${fmt(q.kM, 2)} ± ${fmt(q.kSD, 2)}</td>
+        <td>${fmt(q.uM, 1)} ± ${fmt(q.uSD, 1)}</td>
+        <td>${fmt(q.avgSD, 2)}</td>
+        <td class="pass">${i === 0 ? '★ 首选' : '备选'}</td></tr>`;
+    });
+    html += '</table>';
+    box.innerHTML = html;
+  }
+}
+
+// ============================================================================
+//  PLOTS
+// ============================================================================
+
+function drawScatter(stats) {
+  const canvas = document.getElementById('scatter-plot');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 48, right: 52, bottom: 52, left: 72 };
+
+  ctx.clearRect(0, 0, W, H);
+
+  const xMin = 1, xMax = 7, yMin = 1, yMax = 7;
+  const sx = (W - PAD.left - PAD.right) / (xMax - xMin);
+  const sy = (H - PAD.top - PAD.bottom) / (yMax - yMin);
+  const tx = (v) => PAD.left + (v - xMin) * sx;
+  const ty = (v) => PAD.top  + (yMax - v) * sy;
+
+  // Grid
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 0.5;
+  for (let v = 1; v <= 7; v++) {
+    ctx.beginPath(); ctx.moveTo(tx(v), PAD.top);  ctx.lineTo(tx(v), H - PAD.bottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD.left, ty(v)); ctx.lineTo(W - PAD.right, ty(v));   ctx.stroke();
+  }
+
+  // Target zone
+  ctx.fillStyle = 'rgba(34,197,94,0.06)';
+  ctx.fillRect(tx(3.5), ty(5.0), tx(5.0) - tx(3.5), ty(3.5) - ty(5.0));
+  ctx.strokeStyle = 'rgba(34,197,94,0.3)';
+  ctx.lineWidth = 2; ctx.setLineDash([8, 5]);
+  ctx.strokeRect(tx(3.5), ty(5.0), tx(5.0) - tx(3.5), ty(3.5) - ty(5.0));
+  ctx.setLineDash([]);
+
+  // Labels
+  ctx.fillStyle = '#6b7280'; ctx.font = '12px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('趣味性 (1–7)', W / 2, H - 10);
+  ctx.save(); ctx.translate(18, H / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('信息密度感知 (1–7)', 0, 0); ctx.restore();
+
+  ctx.font = '11px "Microsoft YaHei"';
+  for (let v = 1; v <= 7; v++) {
+    ctx.fillText(v, tx(v), H - PAD.bottom + 20);
+    ctx.fillText(v, PAD.left - 14, ty(v) + 4);
+  }
+
+  const palette = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+  const colors = {};
+  stats.forEach((s, i) => { colors[s.videoId] = palette[i % palette.length]; });
+
+  stats.forEach(s => {
+    const cx = tx(s.iM), cy = ty(s.dM);
+    const ex = s.iSD * sx, ey = s.dSD * sy;
+
+    // Error bars
+    ctx.strokeStyle = colors[s.videoId]; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(cx - ex, cy); ctx.lineTo(cx + ex, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - ey); ctx.lineTo(cx, cy + ey); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Point
+    ctx.fillStyle = colors[s.videoId];
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Label
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Microsoft YaHei"';
+    ctx.fillText(s.videoId, cx + 15, cy + 5);
+  });
+
+  // Legend
+  ctx.font = '11px "Microsoft YaHei"';
+  let lx = W - 190;
+  Object.entries(colors).forEach(([id, color], i) => {
+    const x = lx + i * 70;
+    ctx.fillStyle = color; ctx.fillRect(x, 14, 10, 10);
+    ctx.fillStyle = '#9ca3af'; ctx.fillText('视频 ' + id, x + 15, 24);
+  });
+}
+
+function drawIndividual(videoIds) {
+  const canvas = document.getElementById('individual-plot');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 48, right: 52, bottom: 52, left: 72 };
+
+  ctx.clearRect(0, 0, W, H);
+
+  const sx = (v) => PAD.left + (v - 1) * ((W - PAD.left - PAD.right) / 6);
+  const sy = (v) => PAD.top  + (7 - v) * ((H - PAD.top - PAD.bottom) / 6);
+
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 0.5;
+  for (let v = 1; v <= 7; v++) {
+    ctx.beginPath(); ctx.moveTo(sx(v), PAD.top);  ctx.lineTo(sx(v), H - PAD.bottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD.left, sy(v)); ctx.lineTo(W - PAD.right, sy(v));   ctx.stroke();
+  }
+
+  ctx.fillStyle = 'rgba(34,197,94,0.06)';
+  ctx.fillRect(sx(3.5), sy(5.0), sx(5.0) - sx(3.5), sy(3.5) - sy(5.0));
+  ctx.strokeStyle = 'rgba(34,197,94,0.3)';
+  ctx.lineWidth = 2; ctx.setLineDash([8, 5]);
+  ctx.strokeRect(sx(3.5), sy(5.0), sx(5.0) - sx(3.5), sy(3.5) - sy(5.0));
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#6b7280'; ctx.font = '12px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('趣味性 (1–7)', W / 2, H - 10);
+  ctx.save(); ctx.translate(18, H / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('信息密度感知 (1–7)', 0, 0); ctx.restore();
+
+  ctx.font = '11px "Microsoft YaHei"';
+  for (let v = 1; v <= 7; v++) {
+    ctx.fillText(v, sx(v), H - PAD.bottom + 20);
+    ctx.fillText(v, PAD.left - 14, sy(v) + 4);
+  }
+
+  const palette = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+  const colors = {};
+  videoIds.forEach((vid, i) => { colors[vid] = palette[i % palette.length]; });
+
+  const jitter = () => (Math.random() - 0.5) * 0.16;
+
+  videoIds.forEach(vid => {
+    const rows = allData.filter(d => d.videoId === vid);
+    ctx.globalAlpha = 0.6;
+    rows.forEach(d => {
+      ctx.fillStyle = colors[vid];
+      ctx.beginPath();
+      ctx.arc(sx(d.interest + jitter()), sy(d.density + jitter()), 5.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  });
+
+  ctx.font = '11px "Microsoft YaHei"';
+  let lx = W - 190;
+  Object.entries(colors).forEach(([id, color], i) => {
+    const x = lx + i * 70;
+    ctx.fillStyle = color; ctx.fillRect(x, 14, 10, 10);
+    ctx.fillStyle = '#9ca3af'; ctx.fillText('视频 ' + id, x + 15, 24);
+  });
+}
+
+// ============================================================================
+//  EXPORT
+// ============================================================================
+
+function exportSummary() {
+  const headers = [
+    'video_id','N','seen_pct',
+    'interest_mean','interest_sd',
+    'density_mean','density_sd',
+    'difficulty_mean','difficulty_sd',
+    'knowledge_mean','knowledge_sd',
+    'understanding_mean','understanding_sd',
+    'qualifies'
+  ];
+  const rows = _stats.map(s => [
+    s.videoId, s.n, fmt(s.seenRatio * 100, 0),
+    fmt(s.iM, 2), fmt(s.iSD, 2),
+    fmt(s.dM, 2), fmt(s.dSD, 2),
+    fmt(s.dfM, 2), fmt(s.dfSD, 2),
+    fmt(s.kM, 2), fmt(s.kSD, 2),
+    fmt(s.uM, 1), fmt(s.uSD, 1),
+    s.qualifies
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'summary');
+  XLSX.writeFile(wb, 'screening_summary.xlsx');
+}
+
+function exportRaw() {
+  const headers = [
+    'participant_id','video_id','video_label','order',
+    'seen','interest','density','difficulty','knowledge','understanding'
+  ];
+  const rows = allData.map(d => [
+    d.participantId, d.videoId, d.videoLabel, d.order,
+    d.seen, d.interest, d.density, d.difficulty, d.knowledge, d.understanding
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'raw');
+  XLSX.writeFile(wb, 'all_participants_raw.xlsx');
+}
+</script>
+</body>
+</html>
